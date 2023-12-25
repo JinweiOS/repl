@@ -7,7 +7,7 @@ import {
   SFCAsyncStyleCompileOptions,
   SFCTemplateCompileOptions,
 } from 'vue/compiler-sfc'
-import { OutputModes } from './output/types'
+import { OutputModes, IDefaultTplConfig } from './output/types'
 import type { editor } from 'monaco-editor-core'
 import welcomeCode from './template/welcome.vue?raw'
 import newSFCCode from './template/new-sfc.vue?raw'
@@ -117,6 +117,7 @@ export interface StoreOptions {
   defaultVueRuntimeProdURL?: string
   defaultVueServerRendererURL?: string
   customElement?: boolean | string | RegExp | (string | RegExp)[]
+  defaultTemplate?: IDefaultTplConfig
 }
 
 export class ReplStore implements Store {
@@ -135,6 +136,8 @@ export class ReplStore implements Store {
   private defaultVueServerRendererURL: string
   private pendingCompiler: Promise<any> | null = null
 
+  private defaultTemplate: IDefaultTplConfig
+
   constructor({
     serializedState = '',
     defaultVueRuntimeURL = `https://cdn.jsdelivr.net/npm/@vue/runtime-dom@${version}/dist/runtime-dom.esm-browser.js`,
@@ -144,8 +147,13 @@ export class ReplStore implements Store {
     outputMode = 'preview',
     productionMode = false,
     customElement = /\.ce\.vue$/,
+    defaultTemplate = {
+      welcomeCode: welcomeCode,
+      newSFCCode: newSFCCode
+    }
   }: StoreOptions = {}) {
     const files: StoreState['files'] = {}
+    this.defaultTemplate = defaultTemplate
 
     if (serializedState) {
       const saved = JSON.parse(atou(serializedState))
@@ -153,7 +161,7 @@ export class ReplStore implements Store {
         setFile(files, filename, saved[filename])
       }
     } else {
-      setFile(files, defaultMainFile, welcomeCode)
+      setFile(files, defaultMainFile, this.defaultTemplate.welcomeCode as string)
     }
 
     this.productionMode = productionMode
@@ -250,7 +258,7 @@ export class ReplStore implements Store {
     if (typeof fileOrFilename === 'string') {
       file = new File(
         fileOrFilename,
-        fileOrFilename.endsWith('.vue') ? newSFCCode : ''
+        fileOrFilename.endsWith('.vue') ? this.defaultTemplate.newSFCCode : ''
       )
     } else {
       file = fileOrFilename
@@ -392,7 +400,7 @@ export class ReplStore implements Store {
           )
         }
         map.code = JSON.stringify(json, null, 2)
-      } catch (e) {}
+      } catch (e) { }
     }
   }
 
@@ -423,9 +431,8 @@ export class ReplStore implements Store {
     this.vueVersion = version
     const compilerUrl = `https://cdn.jsdelivr.net/npm/@vue/compiler-sfc@${version}/dist/compiler-sfc.esm-browser.js`
     // differentiate prod/dev for runtime
-    const runtimeUrl = `https://cdn.jsdelivr.net/npm/@vue/runtime-dom@${version}/dist/runtime-dom.esm-browser${
-      this.productionMode ? `.prod` : ``
-    }.js`
+    const runtimeUrl = `https://cdn.jsdelivr.net/npm/@vue/runtime-dom@${version}/dist/runtime-dom.esm-browser${this.productionMode ? `.prod` : ``
+      }.js`
     const ssrUrl = `https://cdn.jsdelivr.net/npm/@vue/server-renderer@${version}/dist/server-renderer.esm-browser.js`
     this.pendingCompiler = import(/* @vite-ignore */ compilerUrl)
     this.compiler = await this.pendingCompiler
